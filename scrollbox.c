@@ -1,4 +1,8 @@
-#include <SDL/SDL.h>
+#if !__SWITCH__ && !__ANDROID__
+#include <SDL2/SDL.h>
+#else
+#include <SDL.h>
+#endif
 
 Uint8 sboxtop[] =
 {

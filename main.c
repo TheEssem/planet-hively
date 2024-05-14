@@ -3,7 +3,11 @@
 #include <stdio.h>
 #include <time.h>
 
-#include <SDL/SDL.h>
+#if !__SWITCH__ && !__ANDROID__
+#include <SDL2/SDL.h>
+#else
+#include <SDL.h>
+#endif
 
 #ifdef __XBOX__
 #include <hal/xbox.h>
@@ -57,6 +61,8 @@ extern int tbon, tbclos, tbpressed;
 #endif
 
 SDL_Surface *screen;
+SDL_Window *window;
+SDL_Renderer *renderer;
 int ctune = 0;
 int dragger=0, enddragger, dragx, dragy;
 int wdragger=0;
@@ -433,10 +439,10 @@ int main( int argc, char *argv[] )
 #endif
 #endif
 {
-  int i, flags;  
+  int i, flags, renderflags;
   int done, needrender;
   SDL_AudioSpec wanted;
-  void *timer;
+  SDL_TimerID timer;
 
 #ifndef __FIXED_RES__
   int j, k;
@@ -481,14 +487,18 @@ int main( int argc, char *argv[] )
   joy = SDL_JoystickOpen( 0 );
   SDL_JoystickEventState( SDL_ENABLE );
 #endif
-  
+
 #ifdef __SW_SURFACE__
-  flags = SDL_SWSURFACE|SDL_FULLSCREEN;
+  flags = SDL_SWSURFACE|SDL_WINDOW_FULLSCREEN;
+  renderflags = SDL_RENDERER_SOFTWARE|SDL_RENDERER_TARGETTEXTURE;
 #else
   #ifdef __HW_ONLY_WINDOWED__
-    flags = SDL_SWSURFACE|SDL_FULLSCREEN;
+    flags = SDL_SWSURFACE|SDL_WINDOW_FULLSCREEN;
+    renderflags = SDL_RENDERER_SOFTWARE|SDL_RENDERER_TARGETTEXTURE;
   #else
-    flags = SDL_HWSURFACE|SDL_FULLSCREEN|SDL_DOUBLEBUF;
+    //flags = SDL_HWSURFACE|SDL_WINDOW_FULLSCREEN|SDL_GL_DOUBLEBUFFER;
+    flags = SDL_WINDOW_FULLSCREEN|SDL_GL_DOUBLEBUFFER;
+    renderflags = SDL_RENDERER_ACCELERATED|SDL_RENDERER_TARGETTEXTURE;
   #endif
 #endif
 
@@ -501,10 +511,10 @@ int main( int argc, char *argv[] )
       {
 #ifndef __FULLSCREEN_ONLY__
         case 'w':
-          flags &= ~SDL_FULLSCREEN;
+          flags &= ~SDL_WINDOW_FULLSCREEN;
 #ifdef __HW_ONLY_WINDOWED__
-          flags &= ~SDL_SWSURFACE;
-          flags |= SDL_HWSURFACE;
+          //flags &= ~SDL_SWSURFACE;
+          //flags |= SDL_HWSURFACE;
 #endif // __HW_ONLY_WINDOWED__
           break;
 #endif // __FULLSCREEN_ONLY__
@@ -537,8 +547,16 @@ int main( int argc, char *argv[] )
   }
 #endif
 
-  screen = SDL_SetVideoMode( sw, sh, BITSPERPIXEL, flags );
-  if( !screen )
+  window = SDL_CreateWindow("Planet Hively",
+                            SDL_WINDOWPOS_UNDEFINED,
+                            SDL_WINDOWPOS_UNDEFINED,
+                            sw, sh,
+                            flags);
+  renderer = SDL_CreateRenderer(window, -1, renderflags);
+
+  screen = SDL_CreateRGBSurfaceWithFormat(0, sw, sh, BITSPERPIXEL, SDL_PIXELFORMAT_RGB565);
+
+  if ( !window || !renderer || !screen )
   {
 #ifdef __XBOX__
     debugPrint( "SDL says: %s\n", SDL_GetError() );
@@ -548,10 +566,9 @@ int main( int argc, char *argv[] )
 #endif
     return 0;
   }
-  
-  SDL_WM_SetCaption( "Planet Hively", 0 );
+
   SDL_ShowCursor( SDL_DISABLE );
-  
+
   if( !render_init() ) return 0;
   if( !shapes_init() ) return 0;
   if( !text_init() ) return 0;
@@ -574,22 +591,22 @@ int main( int argc, char *argv[] )
 #endif
     return 0;
   }
-  
+
 #ifndef __BROKEN_SDL_TIMER__
-  timer = SDL_AddTimer(FPSTIME, (SDL_NewTimerCallback)timing, 0 );
+  timer = SDL_AddTimer(FPSTIME, (SDL_TimerCallback)timing, 0 );
 #endif
 
   hvl_InitReplayer();
 
   if( start_tune( 0 ) == 0 )
     return 0;
-    
+
   done = 0;
   needrender = 0;
   while( !done )
   {
     SDL_Event event;
-    
+
 #ifdef __BROKEN_SDL_TIMER__
     while (SDL_PollEvent( NULL ) == 0)
     {
@@ -604,60 +621,60 @@ int main( int argc, char *argv[] )
       {
 
 #ifdef __NO_MOUSE__
-  #ifdef __GP2X__
-  
+#ifdef __GP2X__
+
 /**** GP2X joystick reports button events even for D-Pad ****/
-  
+
         case SDL_JOYBUTTONDOWN:
           switch( event.jbutton.button )
           {
             case GP2X_BUTTON_UP:
               joyy = -1;
               break;
-            
+
             case GP2X_BUTTON_DOWN:
               joyy = 1;
               break;
-            
+
             case GP2X_BUTTON_LEFT:
               joyx = -1;
               break;
-            
+
             case GP2X_BUTTON_RIGHT:
               joyx = 1;
               break;
-            
+
             case GP2X_BUTTON_UPLEFT:
               joyx = -1;
               joyy = -1;
               break;
-            
+
             case GP2X_BUTTON_UPRIGHT:
               joyx = 1;
               joyy = -1;
               break;
-            
+
             case GP2X_BUTTON_DOWNLEFT:
               joyx = -1;
               joyy = 1;
               break;
-            
+
             case GP2X_BUTTON_DOWNRIGHT:
               joyx = 1;
               joyy = 1;
               break;
-            
+
             case GP2X_BUTTON_A:
               joyb1 = 1;
               break;
-            
+
             case GP2X_BUTTON_B:
               joyb2 = 1;
               break;
           }
           newjoystate();
           break;
-        
+
         case SDL_JOYBUTTONUP:
           switch( event.jbutton.button )
           {
@@ -696,11 +713,11 @@ int main( int argc, char *argv[] )
               if( joyy == 1 ) joyy = 0;
               if( joyx == 1 ) joyx = 0;
               break;
-            
+
             case GP2X_BUTTON_A:
               joyb1 = 0;
               break;
-            
+
             case GP2X_BUTTON_B:
               joyb2 = 0;
               break;
@@ -715,15 +732,15 @@ int main( int argc, char *argv[] )
               voltimer = TARGET_FPS*2;
               break;
           }
-          
+
           newjoystate();
           break;
 
-  #else // SPECIAL JOYSTICK TYPES
+#else // SPECIAL JOYSTICK TYPES
 
 /**** Normal SDL joystick handling ****/
 
-        case SDL_JOYAXISMOTION:
+      case SDL_JOYAXISMOTION:
           switch( event.jaxis.axis )
           {
             case 0:
@@ -741,7 +758,7 @@ int main( int argc, char *argv[] )
               break;
           }
           break;
-        
+
         case SDL_JOYBUTTONDOWN:
           switch( event.jbutton.button )
           {
@@ -770,19 +787,36 @@ int main( int argc, char *argv[] )
           newjoystate();
           break;
 
-  #endif // SPECIAL JOYSTICK TYPES
+#endif // SPECIAL JOYSTICK TYPES
 #endif
+
+        case SDL_FINGERMOTION:
+          dragx = event.tfinger.x * sw;
+          dragy = event.tfinger.y * sh;
+          break;
 
         case SDL_MOUSEMOTION:
           dragx = event.motion.x;
           dragy = event.motion.y;
           break;
-            
+
+        case SDL_FINGERUP:
+          enddragger = 1;
+          break;
+
         case SDL_MOUSEBUTTONUP:
           if( event.button.button == SDL_BUTTON_LEFT )
             enddragger = 1;
           break;
 
+        case SDL_FINGERDOWN:
+          clickx = event.tfinger.x * sw;
+          clicky = event.tfinger.y * sh;
+          if(( clickx >= 0 ) && ( clickx < sw ) && ( clicky >= 0 ) && ( clicky < sh ))
+            clicked = 1;
+          enddragger = 0;
+          break;
+      
         case SDL_MOUSEBUTTONDOWN:
           if( event.button.button == SDL_BUTTON_LEFT )
           {
@@ -793,7 +827,7 @@ int main( int argc, char *argv[] )
           }
           enddragger = 0;
           break;
-        
+
         case SDL_KEYDOWN:
           switch( event.key.keysym.sym )
           {
@@ -801,7 +835,7 @@ int main( int argc, char *argv[] )
             case 'f':
             case 'F':
             case SDLK_RETURN:	// was going to use alt-return, but since return isn't doing anything else..
-              SDL_WM_ToggleFullScreen( screen );
+              SDL_SetWindowFullscreen( window, flags );
               break;
 #endif
 
@@ -810,12 +844,12 @@ int main( int argc, char *argv[] )
               paused ^= 1;
               SDL_PauseAudio( paused );
               break;
-            
+
             case SDLK_UP:
               if( volume < 16 ) volume++;
               voltimer = TARGET_FPS*2;
               break;
-            
+
             case SDLK_DOWN:
               if( volume > 0 ) volume--;
               voltimer = TARGET_FPS*2;
@@ -827,32 +861,32 @@ int main( int argc, char *argv[] )
 //              else
               done = 1;
               break;
-            
+
             default:
               break;
           }
           break;
-        
+
         case SDL_QUIT:
 //          if( part == PART_MAIN )
 //            fade_in( "click the sun to exit!", 1 );
 //          else
           done = 1;
           break;
-        
+
         case SDL_USEREVENT:
           needrender = 1;
           break;
       }
     } while( SDL_PollEvent( &event ) );
-    
+
     if( needrender )
     {
       needrender = 0;
       done |= render();
     }
   }
-  
+
   SDL_PauseAudio( 1 );
   return 0;
 }

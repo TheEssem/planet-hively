@@ -3,7 +3,11 @@
 #include <math.h>
 #include <string.h>
 
-#include <SDL/SDL.h>
+#if !__SWITCH__ && !__ANDROID__
+#include <SDL2/SDL.h>
+#else
+#include <SDL.h>
+#endif
 
 #include "types.h"
 #include "shapes.h"
@@ -13,6 +17,7 @@
 #include "hvl_replay.h"
 
 extern SDL_Surface *screen;
+extern SDL_Renderer *renderer;
 extern int clicked, clickx, clicky;
 extern struct hvl_tune *tune;
 extern int ctune, paused;
@@ -21,6 +26,7 @@ extern int tbx, tby, tbw, tbh, tbbarh, tbbrd, tbaw;
 extern int dragger, enddragger, wdragger, dragx, dragy;
 extern int tbpressed;
 
+SDL_Texture *texture;
 int wdxo, wdyo;
 int voltimer=0;
 
@@ -160,7 +166,8 @@ char *top_blah[] = { "www.hivelytracker.com",
                      "www.uprough.net",
                      "bbcode and unicode don't work on the oneliner",
                      "super special greets to abyss. thanks for ahx :-)",
-                     "this port was done by blacky stardust",
+                     "original sdl port by blacky stardust",
+                     "sdl2 port by esm.",
                      NULL };
                                            
 char *othertexts[] = { "|welcome to\n\n"
@@ -1023,6 +1030,8 @@ void start_part( int n )
 int render_init( void )
 {
   int i, r, g, b, rd, gd, bd;
+
+  texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGB565, SDL_TEXTUREACCESS_STATIC, sw, sh);
 
   rs   = screen->pitch/BYTESPERPIXEL;
   se   = sw*sh;
@@ -2127,7 +2136,10 @@ int render( void )
   if( SDL_MUSTLOCK( screen ) )
     SDL_UnlockSurface( screen );
   
-  SDL_Flip( screen );
+  SDL_UpdateTexture(texture, NULL, screen->pixels, screen->pitch);
+  SDL_RenderClear(renderer);
+  SDL_RenderCopy(renderer, texture, NULL, NULL);
+  SDL_RenderPresent( renderer );
   
   return finished;
 }

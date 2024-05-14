@@ -11,3 +11,7 @@
 *.mode1v3
 *.mode2v3
 xcuserdata/
+android-project/
+*.nro
+*.core
+*.nacp
